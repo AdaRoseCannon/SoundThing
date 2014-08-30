@@ -17,7 +17,7 @@
     	    top:0;
 	    }
 	</style>
-	<script type="text/javascript" charset="utf-8" async defer>
+	<script type="text/javascript">
 		var audioContext;
 		var analyser;
 		var freqData;
@@ -57,7 +57,6 @@
 				ctx = canvas.getContext("2d");
 				draw(getData ());
 			}
-			navigator.getUserMedia = navigator.getUserMedia || navigator.webkitGetUserMedia;
 			navigator.getUserMedia( {audio:true}, gotStream );
  
 		}
