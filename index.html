@@ -21,9 +21,8 @@
 		var audioContext;
 		var analyser;
 		var ctx;
-		var maxBins = 1024;
+		var maxBins = 128;
 		var binCount;
-		var step;
 		var binCount;
 		var WIDTH;
 		var HEIGHT;
@@ -43,18 +42,17 @@
 			    // Create an AudioNode from the stream.
 			    mediaStreamSource = audioContext.createMediaStreamSource( stream );
 			    analyser = audioContext.createAnalyser();
+			    analyser.fftSize = maxBins * 2;
 			    mediaStreamSource.connect( analyser );
 			    // Connect it to the destination to hear yourself (or any other node for processing!)
 				var canvas = document.createElement('canvas');
 				binCount = Math.min(analyser.frequencyBinCount, maxBins);
-				step = parseInt(analyser.frequencyBinCount/binCount, 10);
-				WIDTH  = binCount;
+				WIDTH  = Math.max(binCount, 500);
 				HEIGHT = WIDTH * document.documentElement.clientHeight / document.documentElement.clientWidth;
 				canvas.width = WIDTH;
 				canvas.height = HEIGHT;
 				canvas.style.zIndex   = -1;
 				canvas.style.position = "absolute";
-				canvas.style.border   = "1px solid";
 				document.body.appendChild(canvas);
 				ctx = canvas.getContext("2d");
 				mainLoop();
@@ -72,7 +70,7 @@
 		    var max = analyser.maxDecibels;
 			analyser.getFloatFrequencyData(freqData);
 			var out = [];
-			for(var i=1;i<freqData.length;i+=step){	
+			for(var i=1;i<Math.min(50, freqData.length);i++){	
 				out.push(HEIGHT-HEIGHT*(freqData[i]-min)/(max-min));
 			}
 			return out;
@@ -83,7 +81,8 @@
 			ctx.beginPath();
 			ctx.moveTo(0, data[0]);
 			for(var i=1;i<data.length;i++){
-				ctx.lineTo(i,data[i]);
+				ctx.lineTo(i * WIDTH/data.length,data[i]);
+				ctx.lineTo((i + 1) * WIDTH/data.length,data[i]);
 			}
 			ctx.stroke();
 		}
