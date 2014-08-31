@@ -18,100 +18,208 @@
 	    }
 	</style>
 	<script type="text/javascript" charset="utf-8" async defer>
-		var audioContext;
-		var analyser;
-		var ctx;
+
+		/**
+		 * Local Vars
+		 */
+		var analyser; // Audio analyser object
 		var maxBins = 128; // Reduce freq resolution
 		var cutOff = 0.5; //  Only draw the bottom half of the spectrum.
-		var binCount;
-		var binCount;
-		var WIDTH;
-		var HEIGHT;
-		var mediaStreamSource;
-		var requestAnimFrame = (function () {
-			return window.requestAnimationFrame || window.webkitRequestAnimationFrame || window.mozRequestAnimationFrame || function (callback) {
-				window.setTimeout(callback, 1000 / 60);
-			};
+		var mediaStreamSource; // The audio input object
+
+ 		var sumData; // Sum of audio ampitude
+ 		var count = 0; //Number of audio frames read.
+
+		var container;
+		var camera, scene, renderer;
+		var triangles = 160000;
+		var mesh, geometry, geometry0;
+		var WIDTH; // Canvas width
+		var HEIGHT; // Canvas height
+		WIDTH  = 300;
+		HEIGHT = WIDTH * document.documentElement.clientHeight / document.documentElement.clientWidth;
+		
+		/**
+		 * Normalise Features
+		 */
+
+		(function normalizeFeatures() {
+			window.requestAnimFrame = (function () {
+				return window.requestAnimationFrame || window.webkitRequestAnimationFrame || window.mozRequestAnimationFrame || function (callback) {
+					window.setTimeout(callback, 1000 / 60);
+				};
+			})();
+			window.AudioContext = window.AudioContext || window.webkitAudioContext;
+			navigator.getUserMedia = navigator.getUserMedia || navigator.mozGetUserMedia || navigator.webkitGetUserMedia;
 		})();
+
+		/**
+		 * Add Event Listners
+		 */
+
 		window.addEventListener('load', init, false);
+		
+		/**
+		 * Init
+		 */
 		function init() {
-			// success callback when requesting audio input stream
-			function gotStream(stream) {
-			    window.AudioContext = window.AudioContext || window.webkitAudioContext;
+
+			// Feature detect
+			if ( ! Detector.webgl ) {
+				Detector.addGetWebGLMessage();
+				return;
+			}
+
+			// Get the audio Source
+			navigator.getUserMedia( {audio:true}, function gotStream(stream) {
+
 			    var audioContext = new AudioContext();
- 
-			    // Create an AudioNode from the stream.
-			    mediaStreamSource = audioContext.createMediaStreamSource( stream );
 			    analyser = audioContext.createAnalyser();
 			    analyser.fftSize = maxBins * 2;
+
+			    // Create an AudioNode from the stream.
+			    mediaStreamSource = audioContext.createMediaStreamSource( stream );
 			    mediaStreamSource.connect( analyser );
-			    // Connect it to the destination to hear yourself (or any other node for processing!)
-				var canvas = document.createElement('canvas');
-				binCount = Math.min(analyser.frequencyBinCount, maxBins);
-				WIDTH  = Math.max(binCount, 500);
-				HEIGHT = WIDTH * document.documentElement.clientHeight / document.documentElement.clientWidth;
-				canvas.width = WIDTH;
-				canvas.height = HEIGHT;
-				canvas.style.zIndex   = -1;
-				canvas.style.position = "absolute";
-				document.body.appendChild(canvas);
-				ctx = canvas.getContext("2d");
-				mainLoop();
-			}
-			navigator.getUserMedia = navigator.getUserMedia || navigator.mozGetUserMedia || navigator.webkitGetUserMedia;
-			navigator.getUserMedia( {audio:true}, gotStream, function (err) {
+			    sumData =  new Float32Array(analyser.frequencyBinCount);
+
+				(function () {
+					var data;
+
+					function dataLoop() {
+						requestAnimationFrame(function () {
+							data = getData();
+							dataLoop();
+						});
+					}
+
+					function drawLoop() {
+						requestAnimationFrame(function () {
+							draw(data);
+							drawLoop();
+						});
+					}
+
+					dataLoop();
+					drawLoop();
+				})();
+
+			}, function (err) {
 				console.log(err);
 			} );
- 
+
+			(function initThreeJS() {
+				container = document.body;
+
+				camera = new THREE.PerspectiveCamera( 27, WIDTH / HEIGHT, 1, 3500 );
+				camera.position.z = 2750;
+
+				scene = new THREE.Scene();
+				scene.fog = new THREE.Fog( 0x050505, 2000, 3500 );
+
+				scene.add( new THREE.AmbientLight( 0x444444 ) );
+
+				var light1 = new THREE.DirectionalLight( 0xffffff, 0.5 );
+				light1.position.set( 1, 1, 1 );
+				scene.add( light1 );
+
+				var light2 = new THREE.DirectionalLight( 0xffffff, 1.5 );
+				light2.position.set( 0, -1, 0 );
+				scene.add( light2 );
+
+				var loader = new THREE.JSONLoader();
+				loader.load( "js/bunny.js", function (geom) {
+					geometry = geom;
+					geometry0 = geom.clone();
+					mesh = new THREE.Mesh( geom, new THREE.MeshNormalMaterial() );
+					mesh.scale.set(100, 100, 100);
+					scene.add( mesh );
+				});
+
+				renderer = new THREE.WebGLRenderer( { antialias: false } );
+				renderer.setClearColor( scene.fog.color, 1 );
+				renderer.setSize( WIDTH, HEIGHT );
+
+				renderer.gammaInput = true;
+				renderer.gammaOutput = true;
+				container.appendChild( renderer.domElement );
+				renderer.domElement.style.width = '100%';
+				renderer.domElement.style.height = '100%';
+
+				window.addEventListener( 'resize', function () {
+					HEIGHT = WIDTH * document.documentElement.clientHeight / document.documentElement.clientWidth;
+
+					camera.aspect = WIDTH / HEIGHT;
+					camera.updateProjectionMatrix();
+
+					renderer.setSize( WIDTH, HEIGHT );
+				}, false );
+			})();
 		}
- 
+
+
 		function getData () {
 		    var freqData = new Float32Array(analyser.frequencyBinCount);
 			var min = analyser.minDecibels;
 		    var max = analyser.maxDecibels;
 			analyser.getFloatFrequencyData(freqData);
 			var out = [];
-			for(var i=1;i<freqData.length * cutOff;i++){	
-				out.push(HEIGHT-HEIGHT*(freqData[i]-min)/(max-min));
+			count++;
+			for(var i=1;i<freqData.length * cutOff;i++){
+				sumData[i] += freqData[i];
+				var average = sumData[i]/count;
+				out.push(freqData[i]-average)/(max-min);
+				//out.push(average);
 			}
 			return out;
 		}
  
-		function draw(data) {
-			ctx.clearRect(0,0,WIDTH,HEIGHT)
-			ctx.beginPath();
-			ctx.moveTo(0, data[0]);
-			for(var i=1;i<data.length;i++){
-				ctx.lineTo(i * WIDTH/data.length,data[i]);
-				ctx.lineTo((i + 1) * WIDTH/data.length,data[i]);
-			}
-			ctx.stroke();
+		function convertCartesianToSpherical(cartesian) {
+
+			var r = Math.sqrt(cartesian.x* cartesian.x + cartesian.y* cartesian.y+ cartesian.z* cartesian.z); 
+			var lat = Math.asin(cartesian.z/r);
+			var lon = Math.atan2(cartesian.y, cartesian.x);
+			return {
+				p: lat,
+				t: lon,
+				r: r
+			};
 		}
-		
-		function mainLoop() {
-			var data;
 
-			function dataLoop() {
-				requestAnimationFrame(function () {
-					data = getData();
-					dataLoop();
-				});
+		function scaleSphere(p, t, array) {
+			var scale0 = 1+array[0]/10;
+			var l = array.length;
+			for(var i=1;i<l;i++) {
+				scale0 += 2*((array[i]/i)*Math.sin(i*i*p/l) + (array[i]/i)*Math.cos(i*i*t/l));
+			}
+			return 1+scale0*0.01;
+		}
+
+		function draw(data) {
+			if (!geometry) return;
+			var time = Date.now() * 0.001;
+
+			var nVert = geometry.vertices.length;
+
+			for (var i = 0; i < nVert; i += 1) {
+				var sph = convertCartesianToSpherical(geometry0.vertices[i]);
+				var scale = scaleSphere(sph.p, sph.t, data);
+				geometry.vertices[i].x = geometry0.vertices[i].x * scale;
+				geometry.vertices[i].y = geometry0.vertices[i].y * scale;
+				geometry.vertices[i].z = geometry0.vertices[i].z * scale;
 			}
 
-			function drawLoop() {
-				setTimeout(function () {
-					requestAnimationFrame(function () {
-						draw(data);
-						drawLoop();
-					})
-				}, 100);
-			}
+			geometry.dynamic = true;
+			geometry.verticesNeedUpdate = true;
 
-			drawLoop();
-			dataLoop();
+			mesh.rotation.x = time * 0.25;
+			mesh.rotation.y = time * 0.5;
+
+			renderer.render( scene, camera );
 		}
 
 	</script>
+	<script src="js/three.min.js" async defer></script>
+	<script src="js/Detector.js"></script>
 </head>
 <body>
  
