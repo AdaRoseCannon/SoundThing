@@ -21,7 +21,8 @@
 		var audioContext;
 		var analyser;
 		var ctx;
-		var maxBins = 128;
+		var maxBins = 128; // Reduce freq resolution
+		var cutOff = 0.5; //  Only draw the bottom half of the spectrum.
 		var binCount;
 		var binCount;
 		var WIDTH;
@@ -70,7 +71,7 @@
 		    var max = analyser.maxDecibels;
 			analyser.getFloatFrequencyData(freqData);
 			var out = [];
-			for(var i=1;i<Math.min(50, freqData.length);i++){	
+			for(var i=1;i<freqData.length * cutOff;i++){	
 				out.push(HEIGHT-HEIGHT*(freqData[i]-min)/(max-min));
 			}
 			return out;
