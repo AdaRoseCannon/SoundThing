@@ -20,12 +20,14 @@
 	<script type="text/javascript" charset="utf-8" async defer>
 		var audioContext;
 		var analyser;
-		var freqData;
-		var min;
-		var max;
 		var ctx;
+		var maxBins = 1024;
+		var binCount;
+		var step;
+		var binCount;
 		var WIDTH;
 		var HEIGHT;
+		var mediaStreamSource;
 		var requestAnimFrame = (function () {
 			return window.requestAnimationFrame || window.webkitRequestAnimationFrame || window.mozRequestAnimationFrame || function (callback) {
 				window.setTimeout(callback, 1000 / 60);
@@ -39,14 +41,14 @@
 			    var audioContext = new AudioContext();
  
 			    // Create an AudioNode from the stream.
-			    var mediaStreamSource = audioContext.createMediaStreamSource( stream );
+			    mediaStreamSource = audioContext.createMediaStreamSource( stream );
 			    analyser = audioContext.createAnalyser();
 			    mediaStreamSource.connect( analyser );
-			    freqData = new Float32Array(analyser.frequencyBinCount);
 			    // Connect it to the destination to hear yourself (or any other node for processing!)
- 
 				var canvas = document.createElement('canvas');
-				WIDTH  = analyser.frequencyBinCount;
+				binCount = Math.min(analyser.frequencyBinCount, maxBins);
+				step = parseInt(analyser.frequencyBinCount/binCount, 10);
+				WIDTH  = binCount;
 				HEIGHT = WIDTH * document.documentElement.clientHeight / document.documentElement.clientWidth;
 				canvas.width = WIDTH;
 				canvas.height = HEIGHT;
@@ -55,7 +57,7 @@
 				canvas.style.border   = "1px solid";
 				document.body.appendChild(canvas);
 				ctx = canvas.getContext("2d");
-				draw(getData ());
+				mainLoop();
 			}
 			navigator.getUserMedia = navigator.getUserMedia || navigator.mozGetUserMedia || navigator.webkitGetUserMedia;
 			navigator.getUserMedia( {audio:true}, gotStream, function (err) {
@@ -65,26 +67,50 @@
 		}
  
 		function getData () {
+		    var freqData = new Float32Array(analyser.frequencyBinCount);
+			var min = analyser.minDecibels;
+		    var max = analyser.maxDecibels;
 			analyser.getFloatFrequencyData(freqData);
-			return freqData;
+			var out = [];
+			for(var i=1;i<freqData.length;i+=step){	
+				out.push(HEIGHT-HEIGHT*(freqData[i]-min)/(max-min));
+			}
+			return out;
 		}
  
 		function draw(data) {
 			ctx.clearRect(0,0,WIDTH,HEIGHT)
 			ctx.beginPath();
-			min = analyser.minDecibels;
-		    max = analyser.maxDecibels;
-			ctx.moveTo(0,(data[i]-min)/(max-min));
+			ctx.moveTo(0, data[0]);
 			for(var i=1;i<data.length;i++){
-				var x=i;
-				var y=HEIGHT-HEIGHT*(data[i]-min)/(max-min);
-				ctx.lineTo(x,y);
+				ctx.lineTo(i,data[i]);
 			}
 			ctx.stroke();
-			requestAnimFrame(function () {
-				draw(getData ());
-			});
 		}
+		
+		function mainLoop() {
+			var data;
+
+			function dataLoop() {
+				requestAnimationFrame(function () {
+					data = getData();
+					dataLoop();
+				});
+			}
+
+			function drawLoop() {
+				setTimeout(function () {
+					requestAnimationFrame(function () {
+						draw(data);
+						drawLoop();
+					})
+				}, 100);
+			}
+
+			drawLoop();
+			dataLoop();
+		}
+
 	</script>
 </head>
 <body>
