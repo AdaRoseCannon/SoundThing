@@ -186,12 +186,12 @@
 		}
 
 		function scaleSphere(p, t, array) {
-			var scale0 = 1+array[0]/10;
+			var scale0 = 1+array[0]/6;
 			var l = array.length;
 			for(var i=1;i<l;i++) {
-				scale0 += 2*((array[i]/i)*Math.sin(i*i*p/l) + (array[i]/i)*Math.cos(i*i*t/l));
+				scale0 += 2*((array[i]*i/(l*l))*Math.sin(i*i*p/l) + (array[i]*i/(l*l))*Math.cos(i*i*t/l));
 			}
-			return 1+scale0*0.01;
+			return 1+scale0*0.1;
 		}
 
 		function draw(data) {
