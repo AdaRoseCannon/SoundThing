@@ -164,8 +164,8 @@
 					var hammertime = new Hammer(renderer.domElement);
 					hammertime.get('pinch').set({ enable: true });
 					hammertime.on('panmove', function(ev) {
-						xRotOffset -= ev.velocityY;
-						yRotOffset -= ev.velocityX;
+						xRotOffset -= ev.velocityY/10;
+						yRotOffset -= ev.velocityX/10;
 					});
 					hammertime.on('pinchstart', function(ev) {
 						tempScale = meshScale;
