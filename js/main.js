@@ -140,15 +140,23 @@ function initTouch() {
 }
 
 function initMenu() {
+	document.querySelector('.overlay').style.display = 'block';
+	var cardboard = document.querySelector('.overlay-item.cardboard');
+	var computer = document.querySelector('.overlay-item.computer');
 	return new Promise( function (resolve) {
-		var ev = window.addEventListener('click', function () {
+		cardboard.addEventListener('click', function () {
 			fullscreen();
-			window.removeEventListener('click', ev);
 			resolve('cardboard');
 		});
-		window.addEventListener('keypress', function () {
+		computer.addEventListener('click', function () {
 			resolve('screen');
+			window.addEventListener('doubleclick', fullscreen);
 		});
+	}).then(function (choice) {
+		cardboard.removeEventListener('click');
+		computer.removeEventListener('click');
+		document.querySelector('.overlay').style.display = 'none';
+		return choice;
 	});
 }
 
