@@ -104,18 +104,11 @@ function initThreeJS() {
 		renderMethod = renderer;
 		window.addEventListener('resize', resizeToWindow, false);
 
-		var floorTexture = THREE.ImageUtils.loadTexture('images/checker.png');
-		floorTexture.wrapS = THREE.RepeatWrapping;
-		floorTexture.wrapT = THREE.RepeatWrapping;
-		floorTexture.repeat = new THREE.Vector2(50, 50);
-		floorTexture.anisotropy = renderer.getMaxAnisotropy();
-
 		var floorMaterial = new THREE.MeshLambertMaterial({
 			color: 0xffffff,
 			specular: 0xffffff,
 			shininess: 20,
-			shading: THREE.FlatShading,
-			map: floorTexture
+			shading: THREE.FlatShading
 		});
 
 		var floorGeometry = new THREE.PlaneGeometry(10000, 10000);
