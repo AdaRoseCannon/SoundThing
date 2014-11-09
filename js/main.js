@@ -139,7 +139,7 @@ function initMenu() {
 	return new Promise( function (resolve) {
 		var ev = window.addEventListener('click', function () {
 			fullscreen();
-			window.removeEventListener(ev);
+			window.removeEventListener('click', ev);
 			resolve('cardboard');
 		});
 		window.addEventListener('keypress', function () {
@@ -152,37 +152,37 @@ function initCardboard() {
 	return Promise.all([addScript('js/StereoEffect.js'), addScript('js/OrbitControls.js'),  addScript('js/DeviceOrientationControls.js')]).then (function () {
 
 		var clock = new THREE.Clock();
-		var controls = new THREE.OrbitControls(camera, renderer.domElement);
-
-		controls.rotateUp(Math.PI / 4);
-		controls.target.set(
-			camera.position.x + 0.1,
-			camera.position.y,
-			camera.position.z
-		);
-		controls.noZoom = true;
-		controls.noPan = true;
 
 		function setOrientationControls(e) {
 			if (!e.alpha) {
 				return;
 			}
+			var controls = new THREE.OrbitControls(camera, renderer.domElement);
+
+			controls.rotateUp(Math.PI / 4);
+			controls.target.set(
+				camera.position.x + 0.1,
+				camera.position.y,
+				camera.position.z
+			);
+			controls.noZoom = true;
+			controls.noPan = true;
 
 			controls = new THREE.DeviceOrientationControls(camera, true);
 			controls.connect();
 			controls.update();
 
+			function controlsLoop() {
+				requestAnimationFrame(function() {
+					controls.update(clock.getDelta);
+					controlsLoop();
+				});
+			}
+			controlsLoop();
+
 			window.removeEventListener('deviceorientation', setOrientationControls);
 		}
 		window.addEventListener('deviceorientation', setOrientationControls, true);
-
-		function controlsLoop() {
-			requestAnimationFrame(function() {
-				controls.update(clock.getDelta);
-				controlsLoop();
-			});
-		}
-		controlsLoop();
 		render(new THREE.StereoEffect(renderer));
 	});
 }
@@ -225,6 +225,8 @@ function init() {
 					});
 					break;
 			}
+
+			console.log ('Getting data');
 			beginBunny();
 		});
 	}
