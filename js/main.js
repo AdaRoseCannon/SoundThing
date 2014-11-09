@@ -8,7 +8,7 @@
  */
 var began = false;
 var analyser; // Audio analyser object
-var maxBins = 128; // Reduce freq resolution
+var maxBins = 32; // Reduce freq resolution
 var cutOff = 0.5; // Only draw the bottom half of the spectrum.
 var mediaStreamSource; // The audio input object
 
@@ -63,19 +63,30 @@ function initThreeJS() {
 		container = document.body;
 
 		camera = new THREE.PerspectiveCamera(90, WIDTH / HEIGHT, 1, 1500);
-		camera.position.z = 1000;
+		camera.position.z = 1300;
 
 		scene = new THREE.Scene();
-		scene.fog = new THREE.Fog(0x050505, 2000, 3500);
 
-		scene.add(new THREE.AmbientLight(0x444444));
+		var lightGreen = new THREE.DirectionalLight(0xffff00, 0.5);
+		lightGreen.position.set(-100, -100, 0);
+		scene.add(lightGreen);
 
-		var light1 = new THREE.DirectionalLight(0xffffff, 0.5);
-		light1.position.set(1, 1, 1);
-		scene.add(light1);
+		var lightRed = new THREE.DirectionalLight(0xff00ff, 0.5);
+		lightRed.position.set(100, 0, 0);
+		scene.add(lightRed);
 
-		var light2 = new THREE.DirectionalLight(0xffffff, 1.5);
-		light2.position.set(0, -1, 0);
+		var lightCyan = new THREE.DirectionalLight(0x00ffff, 0.5);
+		lightCyan.position.set(0, 100, 100);
+		scene.add(lightCyan);
+
+		var light2 = new THREE.DirectionalLight(0xffffff, 0.5);
+		light2.position.set(0, 2000, 0);
+		light2.castShadow = true;
+		light2.shadowDarkness = 0.5;
+		light2.shadowCameraTop = 800;
+		light2.shadowCameraBottom = -800;
+		light2.shadowCameraLeft = -800;
+		light2.shadowCameraRight = 800;
 		scene.add(light2);
 
 		var loader = new THREE.JSONLoader();
@@ -83,11 +94,9 @@ function initThreeJS() {
 		renderer = new THREE.WebGLRenderer({
 			antialias: false
 		});
-		renderer.setClearColor(scene.fog.color, 1);
-		renderer.setSize(WIDTH, HEIGHT);
 
-		renderer.gammaInput = true;
-		renderer.gammaOutput = true;
+		renderer.setSize(WIDTH, HEIGHT);
+		renderer.shadowMapEnabled = true;
 		container.appendChild(renderer.domElement);
 		renderer.domElement.style.width = '100%';
 		renderer.domElement.style.height = '100%';
@@ -101,7 +110,7 @@ function initThreeJS() {
 		floorTexture.repeat = new THREE.Vector2(50, 50);
 		floorTexture.anisotropy = renderer.getMaxAnisotropy();
 
-		var floorMaterial = new THREE.MeshPhongMaterial({
+		var floorMaterial = new THREE.MeshLambertMaterial({
 			color: 0xffffff,
 			specular: 0xffffff,
 			shininess: 20,
@@ -113,16 +122,25 @@ function initThreeJS() {
 
 		var floorMesh = new THREE.Mesh(floorGeometry, floorMaterial);
 		floorMesh.rotation.x = -Math.PI / 2;
-		floorMesh.position.y = -300;
+		floorMesh.position.y = -500;
+		floorMesh.position.z = -500;
 		scene.add(floorMesh);
 
 		return new Promise(function (resolve) {
 			loader.load("js/bunny.js", function(geom) {
 				geometry = geom;
 				geometry0 = geom.clone();
-				mesh = new THREE.Mesh(geom, new THREE.MeshNormalMaterial());
+				mesh = new THREE.Mesh(geom, new THREE.MeshLambertMaterial({
+					color: 0xffffff,
+					specular: 0xffffff,
+					shininess: 20,
+					shading: THREE.FlatShading
+				}));
 				mesh.scale.set(100, 100, 100);
 				scene.add(mesh);
+				mesh.castShadow = true;
+				floorMesh.receiveShadow = true;
+				light2.lookAt(mesh);
 				resolve();
 			});
 		});
@@ -138,7 +156,7 @@ function resizeToWindow() {
 	camera.updateProjectionMatrix();
 
 	renderer.setSize(WIDTH, HEIGHT);
-	if (renderMethod !== renderer) renderMethod.setSize(WIDTH, HEIGHT);
+	if (stereoEffect) stereoEffect.setSize(WIDTH, HEIGHT);
 }
 
 function initTouch() {
@@ -166,9 +184,9 @@ function initMenu() {
 	var computer = document.querySelector('.overlay-item.computer');
 	return new Promise( function (resolve) {
 		cardboard.addEventListener('click', function () {
-			// fullscreen();
+			fullscreen();
 			resolve('cardboard');
-		});
+		}, false);
 		computer.addEventListener('click', function () {
 			resolve('screen');
 			window.addEventListener('doubleclick', fullscreen);
@@ -184,29 +202,31 @@ function initMenu() {
 function initCardboard() {
 	return Promise.all([addScript('js/StereoEffect.js'), addScript('js/OrbitControls.js'),  addScript('js/DeviceOrientationControls.js')]).then (function () {
 
-		var clock = new THREE.Clock();
-
 		function setOrientationControls(e) {
 			if (!e.alpha) {
 				return;
 			}
+
+			var clock = new THREE.Clock();
+
 			var controls = new THREE.DeviceOrientationControls(camera, true);
 			controls.connect();
 			controls.update();
 
-			function controlsLoop() {
+			(function controlsLoop() {
 				requestAnimationFrame(function() {
 					controls.update(clock.getDelta);
+					camera.updateProjectionMatrix();
 					controlsLoop();
 				});
-			}
-			controlsLoop();
+			})();
 
-			window.removeEventListener('deviceorientation', setOrientationControls);
+			window.removeEventListener('deviceorientation', setOrientationControls, true);
 		}
 		window.addEventListener('deviceorientation', setOrientationControls, true);
 		stereoEffect = new THREE.StereoEffect(renderer);
-		// render(stereoEffect);
+		render(stereoEffect);
+		resizeToWindow();
 	});
 }
 
@@ -273,23 +293,15 @@ function init() {
 function beginBunny() {
 	if (began) return;
 	began = true;
-	var data;
-
-	function audioDataLoop() {
-		requestAnimationFrame(function() {
-			data = getAudioData();
-			audioDataLoop();
-		});
-	}
 
 	function geomLoop() {
 		requestAnimationFrame(function() {
+			var data = getAudioData();
 			if (data) updateGeom(data);
 			geomLoop();
 		});
 	}
 
-	audioDataLoop();
 	geomLoop();
 }
 
@@ -304,7 +316,7 @@ function getAudioData() {
 	for (var i = 1; i < freqData.length * cutOff; i++) {
 		sumData[i] += freqData[i];
 		var average = sumData[i] / count;
-		out.push(100 * (freqData[i] - average) / (max - min));
+		out.push(50 * (freqData[i] - average) / (max - min));
 	}
 	return out;
 }
