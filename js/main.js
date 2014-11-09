@@ -79,13 +79,6 @@ function initThreeJS() {
 		scene.add(light2);
 
 		var loader = new THREE.JSONLoader();
-		loader.load("js/bunny.js", function(geom) {
-			geometry = geom;
-			geometry0 = geom.clone();
-			mesh = new THREE.Mesh(geom, new THREE.MeshNormalMaterial());
-			mesh.scale.set(100, 100, 100);
-			scene.add(mesh);
-		});
 
 		renderer = new THREE.WebGLRenderer({
 			antialias: false
@@ -101,6 +94,17 @@ function initThreeJS() {
 
 		renderMethod = renderer;
 		window.addEventListener('resize', resizeToWindow, false);
+
+		return new Promise(function (resolve) {
+			loader.load("js/bunny.js", function(geom) {
+				geometry = geom;
+				geometry0 = geom.clone();
+				mesh = new THREE.Mesh(geom, new THREE.MeshNormalMaterial());
+				mesh.scale.set(100, 100, 100);
+				scene.add(mesh);
+				resolve();
+			});
+		});
 	});
 }
 
@@ -289,28 +293,28 @@ function getAudioData() {
 	return out;
 }
 
+function convertCartesianToSpherical(cartesian) {
+
+	var r = Math.sqrt(cartesian.x * cartesian.x + cartesian.y * cartesian.y + cartesian.z * cartesian.z);
+	var lat = Math.asin(cartesian.z / r);
+	var lon = Math.atan2(cartesian.y, cartesian.x);
+	return {
+		p: lat,
+		t: lon,
+		r: r
+	};
+}
+
+function scaleSphere(p, t, array) {
+	var scale0 = 1 + array[0] / 6;
+	var l = array.length;
+	for (var i = 1; i < l; i++) {
+		scale0 += 2 * ((array[i] * i / (l * l)) * Math.sin(i * i * Math.PI * p / l) + (array[i] * i / (l * l)) * Math.cos(i * i * Math.PI * t / l));
+	}
+	return 1 + scale0 * 0.1;
+}
+
 function updateGeom(data) {
-
-	function convertCartesianToSpherical(cartesian) {
-
-		var r = Math.sqrt(cartesian.x * cartesian.x + cartesian.y * cartesian.y + cartesian.z * cartesian.z);
-		var lat = Math.asin(cartesian.z / r);
-		var lon = Math.atan2(cartesian.y, cartesian.x);
-		return {
-			p: lat,
-			t: lon,
-			r: r
-		};
-	}
-
-	function scaleSphere(p, t, array) {
-		var scale0 = 1 + array[0] / 6;
-		var l = array.length;
-		for (var i = 1; i < l; i++) {
-			scale0 += 2 * ((array[i] * i / (l * l)) * Math.sin(i * i * Math.PI * p / l) + (array[i] * i / (l * l)) * Math.cos(i * i * Math.PI * t / l));
-		}
-		return 1 + scale0 * 0.1;
-	}
 
 	if (!geometry) return;
 
