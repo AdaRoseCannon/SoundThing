@@ -12,12 +12,9 @@ var maxBins = 32; // Reduce freq resolution
 var cutOff = 0.5; // Only draw the bottom half of the spectrum.
 var mediaStreamSource; // The audio input object
 
-var sumData; // Sum of audio ampitude
-var count = 0; //Number of audio frames read.
-
 var container;
 var camera, scene, renderer, renderMethod, stereoEffect;
-var mesh, geometry, geometry0;
+var mesh, geometry;
 
 var xRotOffset = 0;
 var yRotOffset = 0;
@@ -27,6 +24,8 @@ var meshScale = tempScale;
 
 var WIDTH = document.documentElement.clientWidth;
 var HEIGHT = WIDTH * document.documentElement.clientHeight / document.documentElement.clientWidth;
+
+var worker = new Worker('js/processVerts.js');
 
 /**
  * Normalise Features
@@ -62,7 +61,7 @@ function initThreeJS() {
 	return addScript('js/three.min.js').then(function () {
 		container = document.body;
 
-		camera = new THREE.PerspectiveCamera(90, WIDTH / HEIGHT, 1, 1500);
+		camera = new THREE.PerspectiveCamera(90, WIDTH / HEIGHT, 1, 2000);
 		camera.position.z = 1300;
 
 		scene = new THREE.Scene();
@@ -122,7 +121,11 @@ function initThreeJS() {
 		return new Promise(function (resolve) {
 			loader.load("js/bunny.js", function(geom) {
 				geometry = geom;
-				geometry0 = geom.clone();
+				worker.postMessage({
+					cmd: 'updateGeom',
+					vertices: geometry.vertices
+				});
+				
 				mesh = new THREE.Mesh(geom, new THREE.MeshLambertMaterial({
 					color: 0xffffff,
 					specular: 0xffffff,
@@ -175,25 +178,26 @@ function initMenu() {
 	document.querySelector('.overlay').style.display = 'block';
 	var cardboard = document.querySelector('.overlay-item.cardboard');
 	var computer = document.querySelector('.overlay-item.computer');
+	var el1, el2;
 	return new Promise( function (resolve) {
-		cardboard.addEventListener('click', function () {
+		cardboard.addEventListener('click', el1 = function () {
 			fullscreen();
 			resolve('cardboard');
 		}, false);
-		computer.addEventListener('click', function () {
+		computer.addEventListener('click', el2 = function () {
 			resolve('screen');
 			window.addEventListener('doubleclick', fullscreen);
 		});
 	}).then(function (choice) {
-		cardboard.removeEventListener('click');
-		computer.removeEventListener('click');
+		cardboard.removeEventListener('click', el1);
+		computer.removeEventListener('click', el2);
 		document.querySelector('.overlay').style.display = 'none';
 		return choice;
 	});
 }
 
 function initCardboard() {
-	return Promise.all([addScript('js/StereoEffect.js'), addScript('js/OrbitControls.js'),  addScript('js/DeviceOrientationControls.js')]).then (function () {
+	return Promise.all([addScript('js/StereoEffect.js'),  addScript('js/DeviceOrientationControls.js')]).then (function () {
 
 		function setOrientationControls(e) {
 			if (!e.alpha) {
@@ -276,7 +280,10 @@ function init() {
 		// Create an AudioNode from the stream.
 		mediaStreamSource = audioContext.createMediaStreamSource(stream);
 		mediaStreamSource.connect(analyser);
-		sumData = new Float32Array(analyser.frequencyBinCount);
+		worker.postMessage({
+			cmd: 'init',
+			frequencyBinCount: analyser.frequencyBinCount
+		});
 
 	}, function(err) {
 		console.log(err);
@@ -287,15 +294,13 @@ function beginBunny() {
 	if (began) return;
 	began = true;
 
-	function geomLoop() {
+	(function geomLoop() {
 		requestAnimationFrame(function() {
-			var data = getAudioData();
-			if (data) updateGeom(data);
+			getAudioData();
+			updateGeom();
 			geomLoop();
 		});
-	}
-
-	geomLoop();
+	})();
 }
 
 function getAudioData() {
@@ -305,52 +310,31 @@ function getAudioData() {
 	var max = analyser.maxDecibels;
 	analyser.getFloatFrequencyData(freqData);
 	var out = [];
-	count++;
 	for (var i = 1; i < freqData.length * cutOff; i++) {
-		sumData[i] += freqData[i];
-		var average = sumData[i] / count;
-		out.push(50 * (freqData[i] - average) / (max - min));
+		out.push(50 * (freqData[i] - min) / (max - min));
 	}
-	return out;
+	worker.postMessage({
+		cmd: 'updateAudioData',
+		audioData: out
+	});
+
 }
-
-function convertCartesianToSpherical(cartesian) {
-
-	var r = Math.sqrt(cartesian.x * cartesian.x + cartesian.y * cartesian.y + cartesian.z * cartesian.z);
-	var lat = Math.asin(cartesian.z / r);
-	var lon = Math.atan2(cartesian.y, cartesian.x);
-	return {
-		p: lat,
-		t: lon,
-		r: r
-	};
-}
-
-function scaleSphere(p, t, array) {
-	var scale0 = 1 + array[0] / 6;
-	var l = array.length;
-	for (var i = 1; i < l; i++) {
-		scale0 += 2 * ((array[i] * i / (l * l)) * Math.sin(i * i * Math.PI * p / l) + (array[i] * i / (l * l)) * Math.cos(i * i * Math.PI * t / l));
+worker.addEventListener('message', function (e) {
+	var data = e.data;
+	switch (data.cmd) {
+		case 'newVertices':
+			geometry.vertices = data.vertices;
+			geometry.dynamic = true;
+			geometry.verticesNeedUpdate = true;
+			break;
+		case 'log':
+			console.log(e.data);
+			break;
 	}
-	return 1 + scale0 * 0.1;
-}
+});
 
-function updateGeom(data) {
-
-	if (!geometry) return;
-
-	var nVert = geometry.vertices.length;
-
-	for (var i = 0; i < nVert; i += 1) {
-		var sph = convertCartesianToSpherical(geometry0.vertices[i]);
-		var scale = scaleSphere(sph.p, sph.t, data);
-		geometry.vertices[i].x = geometry0.vertices[i].x * scale;
-		geometry.vertices[i].y = geometry0.vertices[i].y * scale;
-		geometry.vertices[i].z = geometry0.vertices[i].z * scale;
-	}
-
-	geometry.dynamic = true;
-	geometry.verticesNeedUpdate = true;
+function updateGeom() {
+	worker.postMessage({cmd: 'fetchVertices'});
 }
 
 var renderingStarted = false;
