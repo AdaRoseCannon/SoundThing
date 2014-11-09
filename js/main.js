@@ -209,6 +209,7 @@ function fullscreen () {
 	} else if (container.webkitRequestFullscreen) {
 		container.webkitRequestFullscreen();
 	}
+	resizeToWindow();
 }
 
 /**
@@ -225,21 +226,18 @@ function init() {
 			render(renderer);
 			return initMenu();
 		}).then(function (choice) {
-			switch (choice) {
-				case 'screen':
-					initTouch();
-					break;
-				case 'cardboard':
-					initCardboard().then(function () {
-						console.log('cardboard render');
-					}).catch(function (e) {
-						console.log (e.stack);
-					});
-					break;
-			}
-
-			console.log ('Getting data');
-			beginBunny();
+			Promise.resolve().then(function () {
+				switch (choice) {
+					case 'screen':
+						return initTouch();
+					case 'cardboard':
+						return initCardboard().catch(function (e) {
+							console.log (e.stack);
+						});
+				}
+			}).then (function () {
+				beginBunny();
+			});
 		});
 	}
 
