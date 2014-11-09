@@ -16,7 +16,7 @@ var sumData; // Sum of audio ampitude
 var count = 0; //Number of audio frames read.
 
 var container;
-var camera, scene, renderer, renderMethod;
+var camera, scene, renderer, renderMethod, stereoEffect;
 var mesh, geometry, geometry0;
 
 var xRotOffset = 0;
@@ -95,6 +95,27 @@ function initThreeJS() {
 		renderMethod = renderer;
 		window.addEventListener('resize', resizeToWindow, false);
 
+		var floorTexture = THREE.ImageUtils.loadTexture('images/checker.png');
+		floorTexture.wrapS = THREE.RepeatWrapping;
+		floorTexture.wrapT = THREE.RepeatWrapping;
+		floorTexture.repeat = new THREE.Vector2(50, 50);
+		floorTexture.anisotropy = renderer.getMaxAnisotropy();
+
+		var floorMaterial = new THREE.MeshPhongMaterial({
+			color: 0xffffff,
+			specular: 0xffffff,
+			shininess: 20,
+			shading: THREE.FlatShading,
+			map: floorTexture
+		});
+
+		var floorGeometry = new THREE.PlaneGeometry(10000, 10000);
+
+		var floorMesh = new THREE.Mesh(floorGeometry, floorMaterial);
+		floorMesh.rotation.x = -Math.PI / 2;
+		floorMesh.position.y = -300;
+		scene.add(floorMesh);
+
 		return new Promise(function (resolve) {
 			loader.load("js/bunny.js", function(geom) {
 				geometry = geom;
@@ -145,7 +166,7 @@ function initMenu() {
 	var computer = document.querySelector('.overlay-item.computer');
 	return new Promise( function (resolve) {
 		cardboard.addEventListener('click', function () {
-			fullscreen();
+			// fullscreen();
 			resolve('cardboard');
 		});
 		computer.addEventListener('click', function () {
@@ -169,18 +190,7 @@ function initCardboard() {
 			if (!e.alpha) {
 				return;
 			}
-			var controls = new THREE.OrbitControls(camera, renderer.domElement);
-
-			controls.rotateUp(Math.PI / 4);
-			controls.target.set(
-				camera.position.x + 0.1,
-				camera.position.y,
-				camera.position.z
-			);
-			controls.noZoom = true;
-			controls.noPan = true;
-
-			controls = new THREE.DeviceOrientationControls(camera, true);
+			var controls = new THREE.DeviceOrientationControls(camera, true);
 			controls.connect();
 			controls.update();
 
@@ -195,7 +205,8 @@ function initCardboard() {
 			window.removeEventListener('deviceorientation', setOrientationControls);
 		}
 		window.addEventListener('deviceorientation', setOrientationControls, true);
-		render(new THREE.StereoEffect(renderer));
+		stereoEffect = new THREE.StereoEffect(renderer);
+		// render(stereoEffect);
 	});
 }
 
@@ -209,7 +220,6 @@ function fullscreen () {
 	} else if (container.webkitRequestFullscreen) {
 		container.webkitRequestFullscreen();
 	}
-	resizeToWindow();
 }
 
 /**
