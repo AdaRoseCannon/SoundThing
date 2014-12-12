@@ -1,10 +1,10 @@
 /* jshint worker:true */
 'use strict';
 
-var previousAudioData = [];
-var sumOfSquareDeviations = [];
+var previousAudioData;
+var sumOfSquareDeviations;
+var currentAudioData;
 var count = 0;
-var currentAudioData = [];
 var geometry0;
 var geometry;
 
@@ -110,6 +110,8 @@ self.addEventListener('message', function(e) {
 			break;
 		case 'init': {
 			previousAudioData = new Float32Array(data.frequencyBinCount);
+			sumOfSquareDeviations = new Float32Array(data.frequencyBinCount);
+			currentAudioData = new Float32Array(data.frequencyBinCount);
 			break;
 		}
 	}
