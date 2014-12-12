@@ -1,9 +1,6 @@
 /* jshint worker:true */
 'use strict';
 
-
-var sumData; // Sum of audio ampitude
-var frequencyBinCount;
 var previousAudioData = [];
 var sumOfSquareDeviations = [];
 var count = 0;
@@ -112,8 +109,7 @@ self.addEventListener('message', function(e) {
 			updateGeom();
 			break;
 		case 'init': {
-			frequencyBinCount = data.frequencyBinCount;
-			sumData = new Float32Array(frequencyBinCount);
+			previousAudioData = new Float32Array(data.frequencyBinCount);
 			break;
 		}
 	}
