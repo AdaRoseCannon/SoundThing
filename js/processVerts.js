@@ -36,13 +36,15 @@ function convertCartesianToSpherical(cartesian) {
 	};
 }
 
+var fc = 0;
 function scaleSphere(p, t, array) {
 	var scale = 0;
 	var l = array.length;
 	for (var i = 0; i < l; i++) {
-		var amplitude = (array[i] - averageAudioChannel(i)) / standardDeviation(i);
+		var amplitude = fc === i ? 1 : 0; // (array[i] - averageAudioChannel(i)) / standardDeviation(i);
 		scale += amplitude/(l * Math.log(i + 2)) * (Math.sin(i * i * Math.PI * p / l) + Math.cos(i * i * Math.PI * t / l));
 	}
+	if (Math.random() < 0.00001) fc = (fc + 1) % l;
 	return 1 + scale;
 }
 
