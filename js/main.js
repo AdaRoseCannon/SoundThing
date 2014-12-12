@@ -282,7 +282,7 @@ function init() {
 		mediaStreamSource.connect(analyser);
 		worker.postMessage({
 			cmd: 'init',
-			frequencyBinCount: Math.floor(analyser.frequencyBinCount * cutOff)
+			frequencyBinCount: Math.floor(analyser.frequencyBinCount * cutOff) - 1
 		});
 
 	}, function(err) {
