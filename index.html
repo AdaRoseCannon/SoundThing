@@ -55,6 +55,45 @@
 	<script src="js/Detector.js"></script>
 	<script src="js/es6-promise-2.0.0.min.js"></script>
 	<script type="text/javascript" src="js/main.js"></script>
+	<script id="vertShader" type="shader">
+		varying vec2 vUv;
+		varying vec3 fNormal;
+		uniform float audioBins[ 32 ];
+
+		vec3 convertCartesianToSpherical(vec3 cartesian) {
+
+			float r = sqrt(cartesian.x * cartesian.x + cartesian.y * cartesian.y + cartesian.z * cartesian.z);
+			float lat = asin(cartesian.z / r);
+			float lon = atan(cartesian.y, cartesian.x);
+			return vec3(r, lat, lon);
+		}
+
+		float scaleSphere(float p, float t) {
+			float scale = 0.0;
+			for (int iRef = 0; iRef < 32; iRef++) {
+				float amplitude = audioBins[iRef];
+				float i = float(iRef);
+				float lf = 32.0;
+				scale += amplitude/(lf * log(i + 2.0)) * (sin(i * i * 3.141 * p / lf) + cos(i * i * 3.141 * t / lf));
+			}
+			return 1.0 + scale;
+		}
+
+		void main() {
+		    vUv = uv;
+		    fNormal = normal;
+		    vec3 polar = convertCartesianToSpherical(position);
+		    float scale = scaleSphere(polar.y, polar.z);
+		    gl_Position = projectionMatrix * modelViewMatrix * vec4(position * scale, 1.0 );
+		}
+	</script>
+	<script id="fragShader" type="shader">
+		varying vec3 fNormal;
+
+		void main( void ) {
+		    gl_FragColor = vec4( fNormal, 1.0 );
+		}
+	</script>
 </head>
 <body>
 <div class="overlay">
