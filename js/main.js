@@ -7,20 +7,18 @@
  * Local Vars
  */
 var analyser; // Audio analyser object
-var maxBins = 32; // Reduce freq resolution
-var cutOff = 0.5; // Only draw the bottom half of the spectrum.
 var mediaStreamSource; // The audio input object
+var maxBins = 32; // Reduce freq resolution
 
 var container, mesh;
 var camera, scene, renderer, renderMethod, stereoEffect;
+var dataForVertexShader = Array.apply(null, new Array(maxBins)).map(function() { return 0.0 });
 
 var xRotOffset = 0;
 var yRotOffset = 0;
 
 var WIDTH = document.documentElement.clientWidth;
 var HEIGHT = WIDTH * document.documentElement.clientHeight / document.documentElement.clientWidth;
-
-var audioBins = Array.apply(null, new Array(maxBins)).map(function() { return 0.01 });
 
 /**
  * Normalise Features
@@ -106,7 +104,7 @@ function initThreeJS() {
 					uniforms: {
 						audioBins: {
 							type: "fv1",
-							value: audioBins
+							value: dataForVertexShader
 						}
 					},
 					attributes: {},
@@ -282,14 +280,39 @@ function init() {
 	});
 }
 
-function getAudioData() {
-	if (!analyser) return audioBins;
-	var freqData = new Float32Array(analyser.frequencyBinCount);
-	var min = analyser.minDecibels;
-	var max = analyser.maxDecibels;
-	analyser.getFloatFrequencyData(freqData);
-	for (var i = 1; i < freqData.length * cutOff; i++) {
-		audioBins[i] = (50 * (freqData[i] - min) / (max - min));
+// Scope getAudioDate to keep audio vars nearby
+var getAudioData = (function () {
+
+	var cutOff = 1.0;
+	var count = 0;
+
+	var audioBins = dataForVertexShader.slice();
+	var audioBinsSum = dataForVertexShader.slice();
+	var audioBinsSumOfVarience = dataForVertexShader.slice();
+
+	function getAudioData() {
+		if (!analyser) return audioBins;
+		var freqData = new Float32Array(analyser.frequencyBinCount);
+		var min = analyser.minDecibels;
+		var max = analyser.maxDecibels;
+
+		analyser.getFloatFrequencyData(freqData);
+
+		for (var i = 1; i < freqData.length * cutOff; i++) {
+			audioBins[i] = (50 * (freqData[i] - min) / (max - min));
+		}
+		audioBinsSum.forEach(function (a, i) {
+			audioBinsSum[i] = a + audioBins[i];
+		});
+		audioBinsSumOfVarience.forEach(function (a, i) {
+			if (!count) return;
+			audioBinsSumOfVarience[i] = a + Math.pow((audioBinsSum[i]/count) - audioBins[i], 2);
+
+			// The data we want to represent is the difference of the current noise from the average/standard deviation
+			dataForVertexShader[i] = a ? Math.sqrt(Math.pow((audioBinsSum[i]/count) - audioBins[i], 2)/(a/count)) : 0;
+		});
+		count++;
+
 	}
-	return audioBins;
-}
+	return getAudioData;
+})();
