@@ -247,7 +247,7 @@ function init() {
 	} else {
 		initThreeJS().then(function () {
 			render(renderer);
-			return initMenu();
+			return Promise.resolve('screen');//initMenu();
 		}).then(function (choice) {
 			Promise.resolve().then(function () {
 				switch (choice) {
