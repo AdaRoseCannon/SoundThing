@@ -105,12 +105,6 @@ function initThreeJS() {
 		}
 
 		scene = new THREE.Scene();
-
-		var light2 = new THREE.DirectionalLight(0xffffff, 0.5);
-		light2.position.set(0, 8, 0);
-		light2.lookAt(new THREE.Vector3(0, 0, 0));
-		scene.add(light2);
-
 		var loader = new THREE.JSONLoader();
 		window.addEventListener('resize', resizeToWindow, false);
 
@@ -124,7 +118,6 @@ function initThreeJS() {
 							value: dataForVertexShader
 						}
 					},
-					attributes: {},
 					vertexShader: document.getElementById('vertShader').text,
 					fragmentShader: document.getElementById('fragShader').text
 				});
@@ -149,6 +142,7 @@ function renderLoop() {
 	if (!mesh) return;
 	var time = Date.now() * 0.001;
 	getAudioData();
+	console.log(dataForVertexShader);
 	mesh.rotation.x = time * 0.25 + xRotOffset;
 	mesh.rotation.y = time * 0.5 + yRotOffset;
 	renderMethod.render(scene, camera);
