@@ -79,7 +79,7 @@ function initThreeJS() {
 		camera.position.z = 3;
 
 
-		if (location.hash === '#vr') {
+		if (location.search === '?vr') {
 
 			/**
 			 * Set up stereo effect renderer
