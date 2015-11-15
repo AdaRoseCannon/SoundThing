@@ -1,5 +1,5 @@
 /* jshint browser:true */
-/* globals Detector, THREE, AudioContext, Hammer, Promise */
+/* globals Detector, THREE, AudioContext, Hammer, Promise, DeviceOrientationController */
 'use strict';
 
 
@@ -11,7 +11,7 @@ var mediaStreamSource; // The audio input object
 var maxBins = 32; // Reduce freq resolution
 
 var container, mesh;
-var camera, scene, renderer, renderMethod, stereoEffect;
+var camera, scene, renderer, renderMethod, stereoEffect, deviceOrientationController;
 var dataForVertexShader = Array.apply(null, new Array(maxBins)).map(function() { return 0.0 });
 
 var xRotOffset = 0;
@@ -51,11 +51,58 @@ function addScript(url) {
 }
 
 function initThreeJS() {
-	return addScript('js/three.min.js').then(function () {
+	return addScript('https://cdnjs.cloudflare.com/ajax/libs/three.js/r73/three.min.js')
+	.then(() => {
+		return Promise.all([
+			addScript('https://cdn.rawgit.com/mrdoob/three.js/master/examples/js/effects/StereoEffect.js'),
+			addScript('https://cdn.rawgit.com/richtr/threeVR/master/js/DeviceOrientationController.js')
+		]);
+	})
+	.then(function () {
+
 		container = document.body;
 
-		camera = new THREE.PerspectiveCamera(90, WIDTH / HEIGHT, 0.01, 20);
-		camera.position.z = 2;
+		renderer = new THREE.WebGLRenderer( { antialias: false } );
+		renderer.setPixelRatio( window.devicePixelRatio );
+		container.appendChild(renderer.domElement);
+		renderMethod = renderer;
+		renderer.setSize(WIDTH, HEIGHT);
+		renderer.domElement.style.width = '100%';
+		renderer.domElement.style.height = '100%';
+
+
+
+		/**
+		 * Init camera
+		 */
+		camera = new THREE.PerspectiveCamera(75, WIDTH / HEIGHT, 0.01, 20);
+		camera.position.z = 3;
+
+
+		if (location.hash === '#vr') {
+
+			/**
+			 * Set up stereo effect renderer
+			 */
+
+			const effect = new THREE.StereoEffect(renderer);
+			effect.eyeSeparation = 0.008;
+			effect.focalLength = 0.25;
+			effect.setSize( window.innerWidth, window.innerHeight );
+			renderMethod = effect;
+
+
+			/**
+			 * Set up head tracking
+			 */
+
+			 // provide dummy element to prevent touch/click hijacking.
+			const element = location.hostname !== 'localhost' ? document.createElement("DIV") : undefined;
+			deviceOrientationController = new DeviceOrientationController(camera, element);
+			deviceOrientationController.useQuaternions = false;
+			deviceOrientationController.connect();
+
+		}
 
 		scene = new THREE.Scene();
 
@@ -65,40 +112,10 @@ function initThreeJS() {
 		scene.add(light2);
 
 		var loader = new THREE.JSONLoader();
-
-		renderer = new THREE.WebGLRenderer({
-			antialias: false
-		});
-
-		renderer.setSize(WIDTH, HEIGHT);
-		container.appendChild(renderer.domElement);
-		renderer.domElement.style.width = '100%';
-		renderer.domElement.style.height = '100%';
-
-		renderMethod = renderer;
 		window.addEventListener('resize', resizeToWindow, false);
 
 		return new Promise(function (resolve) {
 			loader.load("js/bunny.json", function(geom) {
-
-				var path = "images/";
-				var format = '.jpg';
-				var urls = [
-					path + 'px' + format, path + 'nx' + format,
-					path + 'py' + format, path + 'ny' + format,
-					path + 'pz' + format, path + 'nz' + format
-				];
-				var reflectionCube = THREE.ImageUtils.loadTextureCube(urls);
-				reflectionCube.format = THREE.RGBFormat;
-				var shiny = new THREE.MeshLambertMaterial({ 
-					color: 0xaa0000,
-					specular: 0x440000,
-					envMap: reflectionCube,
-					combine: THREE.MixOperation,
-					reflectivity: 0.3,
-					metal: true
-				});
-				window.shiny = shiny;
 
 				var mat = new THREE.ShaderMaterial({
 					uniforms: {
@@ -121,8 +138,7 @@ function initThreeJS() {
 }
 
 var renderingStarted = false;
-function render(rm) {
-	if (rm) renderMethod = rm;
+function render() {
 	if (!renderingStarted) {
 		renderLoop();
 		renderingStarted = true;
@@ -137,6 +153,9 @@ function renderLoop() {
 	mesh.rotation.y = time * 0.5 + yRotOffset;
 	renderMethod.render(scene, camera);
 	requestAnimationFrame(renderLoop);
+	if (deviceOrientationController) {
+		deviceOrientationController.update();
+	}
 }
 
 function resizeToWindow() {
@@ -170,59 +189,6 @@ function initTouch() {
 	});
 }
 
-function initMenu() {
-	document.querySelector('.overlay').style.display = 'block';
-	var cardboard = document.querySelector('.overlay-item.cardboard');
-	var computer = document.querySelector('.overlay-item.computer');
-	var el1, el2;
-	return new Promise( function (resolve) {
-		cardboard.addEventListener('click', el1 = function () {
-			fullscreen();
-			resolve('cardboard');
-		}, false);
-		computer.addEventListener('click', el2 = function () {
-			resolve('screen');
-			window.addEventListener('doubleclick', fullscreen);
-		});
-	}).then(function (choice) {
-		cardboard.removeEventListener('click', el1);
-		computer.removeEventListener('click', el2);
-		document.querySelector('.overlay').style.display = 'none';
-		return choice;
-	});
-}
-
-function initCardboard() {
-	return Promise.all([addScript('js/StereoEffect.js'),  addScript('js/DeviceOrientationControls.js')]).then (function () {
-
-		function setOrientationControls(e) {
-			if (!e.alpha) {
-				return;
-			}
-
-			var clock = new THREE.Clock();
-
-			var controls = new THREE.DeviceOrientationControls(camera, true);
-			controls.connect();
-			controls.update();
-
-			(function controlsLoop() {
-				requestAnimationFrame(function() {
-					controls.update(clock.getDelta);
-					camera.updateProjectionMatrix();
-					controlsLoop();
-				});
-			})();
-
-			window.removeEventListener('deviceorientation', setOrientationControls, true);
-		}
-		window.addEventListener('deviceorientation', setOrientationControls, true);
-		stereoEffect = new THREE.StereoEffect(renderer);
-		render(stereoEffect);
-		resizeToWindow();
-	});
-}
-
 function fullscreen () {
 	if (container.requestFullscreen) {
 		container.requestFullscreen();
@@ -246,7 +212,7 @@ function init() {
 		return;
 	} else {
 		initThreeJS().then(function () {
-			render(renderer);
+			render();
 			return Promise.resolve('screen');//initMenu();
 		}).then(function (choice) {
 			Promise.resolve().then(function () {
