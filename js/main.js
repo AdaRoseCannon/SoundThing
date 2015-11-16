@@ -142,7 +142,6 @@ function renderLoop() {
 	if (!mesh) return;
 	var time = Date.now() * 0.001;
 	getAudioData();
-	console.log(dataForVertexShader);
 	mesh.rotation.x = time * 0.25 + xRotOffset;
 	mesh.rotation.y = time * 0.5 + yRotOffset;
 	renderMethod.render(scene, camera);
